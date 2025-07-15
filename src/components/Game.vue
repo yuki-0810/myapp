@@ -193,7 +193,7 @@ onMounted(() => {
   }
 
   // Add a wall for testing
-  walls.push(new Wall(225, 400));
+  walls.push(new Wall(225, 300));
 
   // Draw everything
   function draw() {
