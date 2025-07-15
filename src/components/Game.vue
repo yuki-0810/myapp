@@ -32,6 +32,7 @@ onMounted(() => {
   const enemies = [];
   const towers = [];
   const projectiles = [];
+  const walls = [];
 
   // Game Classes
   class Projectile {
@@ -109,6 +110,35 @@ onMounted(() => {
     }
   }
 
+  class Wall {
+    constructor(x, y, health = 200) {
+      this.x = x;
+      this.y = y;
+      this.width = 40;
+      this.height = 40;
+      this.health = health;
+      this.maxHealth = health;
+    }
+
+    draw() {
+      ctx.fillStyle = 'brown';
+      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+
+      // Draw health bar
+      const healthBarWidth = this.width;
+      const healthBarHeight = 5;
+      const healthBarX = this.x - this.width / 2;
+      const healthBarY = this.y - this.height / 2 - 10;
+
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+      ctx.fillStyle = 'lime';
+      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
+      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+    }
+  }
+
   class Enemy {
     constructor(x, y, speed = 1, health = 100) {
       this.x = x;
@@ -118,20 +148,35 @@ onMounted(() => {
       this.speed = speed;
       this.health = health;
       this.pathIndex = 0;
+      this.isAttackingWall = false;
     }
 
     move() {
-      if (this.pathIndex < path.length - 1) {
-        const target = path[this.pathIndex + 1];
-        const dx = target.x - this.x;
-        const dy = target.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+      // Check for collision with walls
+      const collidedWall = walls.find(wall => {
+        return this.x < wall.x + wall.width / 2 &&
+               this.x + this.width / 2 > wall.x - wall.width / 2 &&
+               this.y < wall.y + wall.height / 2 &&
+               this.y + this.height / 2 > wall.y - wall.height / 2;
+      });
 
-        if (distance < this.speed) {
-          this.pathIndex++;
-        } else {
-          this.x += (dx / distance) * this.speed;
-          this.y += (dy / distance) * this.speed;
+      if (collidedWall) {
+        this.isAttackingWall = true;
+        collidedWall.health -= 1; // Reduce wall health over time
+      } else {
+        this.isAttackingWall = false;
+        if (this.pathIndex < path.length - 1) {
+          const target = path[this.pathIndex + 1];
+          const dx = target.x - this.x;
+          const dy = target.y - this.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < this.speed) {
+            this.pathIndex++;
+          } else {
+            this.x += (dx / distance) * this.speed;
+            this.y += (dy / distance) * this.speed;
+          }
         }
       }
     }
@@ -147,7 +192,8 @@ onMounted(() => {
     enemies.push(new Enemy(path[0].x, path[0].y));
   }
 
-  
+  // Add a wall for testing
+  walls.push(new Wall(225, 400));
 
   // Draw everything
   function draw() {
@@ -173,6 +219,9 @@ onMounted(() => {
 
     // Draw projectiles
     projectiles.forEach(projectile => projectile.draw());
+
+    // Draw walls
+    walls.forEach(wall => wall.draw());
   }
 
   // Game loop
@@ -195,6 +244,13 @@ onMounted(() => {
     for (let i = enemies.length - 1; i >= 0; i--) {
       if (enemies[i].health <= 0) {
         enemies.splice(i, 1);
+      }
+    }
+
+    // Remove destroyed walls
+    for (let i = walls.length - 1; i >= 0; i--) {
+      if (walls[i].health <= 0) {
+        walls.splice(i, 1);
       }
     }
 
