@@ -1,7 +1,7 @@
 <template>
   <div class="game-container">
     <h1>Vue Tower Defense</h1>
-    <canvas ref="gameCanvas" width="800" height="600"></canvas>
+    <canvas ref="gameCanvas" width="450" height="800"></canvas>
   </div>
 </template>
 
@@ -22,12 +22,11 @@ onMounted(() => {
   // Game variables
   let score = 0;
   const path = [
-    { x: 0, y: 300 },
-    { x: 200, y: 300 },
-    { x: 200, y: 100 },
-    { x: 600, y: 100 },
-    { x: 600, y: 500 },
-    { x: 800, y: 500 },
+    { x: 50, y: 0 },
+    { x: 50, y: 300 },
+    { x: 400, y: 300 },
+    { x: 400, y: 750 },
+    { x: 400, y: 800 },
   ];
 
   const enemies = [];
@@ -253,5 +252,9 @@ onMounted(() => {
 canvas {
   border: 1px solid black;
   background-color: #f0f0f0;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto; /* Center the canvas */
 }
 </style>
