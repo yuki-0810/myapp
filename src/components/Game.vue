@@ -43,6 +43,7 @@ onMounted(() => {
   const towers = [];
   const projectiles = [];
   const walls = [];
+  const defenseAreas = [];
 
   // Game Classes
   class Projectile {
@@ -149,6 +150,37 @@ onMounted(() => {
     }
   }
 
+  class DefenseArea {
+    constructor(x, y, width, height, health = 1000) {
+      this.x = x;
+      this.y = y;
+      this.width = width;
+      this.height = height;
+      this.health = health;
+      this.maxHealth = health;
+      this.containedUnits = []; // Towers and walls within this area
+    }
+
+    draw() {
+      ctx.strokeStyle = 'purple';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+
+      // Draw health bar
+      const healthBarWidth = this.width;
+      const healthBarHeight = 8;
+      const healthBarX = this.x - this.width / 2;
+      const healthBarY = this.y - this.height / 2 - 15;
+
+      ctx.fillStyle = 'darkgray';
+      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+      ctx.fillStyle = 'green';
+      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
+      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+    }
+  }
+
   class Enemy {
     constructor(x, y, speed = 1, health = 100) {
       this.x = x;
@@ -204,6 +236,11 @@ onMounted(() => {
 
   
 
+  // Add defense areas for testing
+  defenseAreas.push(new DefenseArea(100, 100, 100, 100));
+  defenseAreas.push(new DefenseArea(350, 200, 100, 100));
+  defenseAreas.push(new DefenseArea(100, 600, 100, 100));
+
   // Draw everything
   function draw() {
     // Clear canvas
@@ -219,6 +256,9 @@ onMounted(() => {
       ctx.lineTo(path[i].x, path[i].y);
     }
     ctx.stroke();
+
+    // Draw defense areas
+    defenseAreas.forEach(area => area.draw());
 
     // Draw enemies
     enemies.forEach(enemy => enemy.draw());
