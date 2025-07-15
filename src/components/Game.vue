@@ -3,6 +3,7 @@
     <h1>Vue Tower Defense</h1>
     <div class="controls">
       <button @click="selectUnit('tower')">Place Tower</button>
+      <button @click="selectUnit('cannon')">Place Cannon</button>
       <button @click="selectUnit('wall')">Place Wall</button>
     </div>
     <canvas ref="gameCanvas" width="450" height="800"></canvas>
@@ -13,7 +14,7 @@
 import { ref, onMounted } from 'vue';
 
 const gameCanvas = ref(null);
-const selectedUnitType = ref(null); // 'tower' or 'wall'
+const selectedUnitType = ref(null); // 'tower', 'wall', or 'cannon'
 
 const selectUnit = (type) => {
   selectedUnitType.value = type;
@@ -47,13 +48,14 @@ onMounted(() => {
 
   // Game Classes
   class Projectile {
-    constructor(x, y, target, damage, speed = 5) {
+    constructor(x, y, target, damage, speed = 5, splashRadius = 0) {
       this.x = x;
       this.y = y;
       this.target = target;
       this.damage = damage;
       this.speed = speed;
       this.radius = 3;
+      this.splashRadius = splashRadius;
     }
 
     move() {
@@ -118,6 +120,40 @@ onMounted(() => {
         projectiles.push(new Projectile(this.x, this.y, target, this.damage));
         this.attackCooldown = this.attackSpeed;
       }
+    }
+  }
+
+  class Cannon extends Tower {
+    constructor(x, y) {
+        super(x, y, 120, 40, 180); // range, damage, attackSpeed
+    }
+
+    draw() {
+        ctx.fillStyle = 'darkgreen';
+        ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+
+        // Draw range circle
+        ctx.strokeStyle = 'rgba(0, 100, 0, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    update() {
+        if (this.attackCooldown > 0) {
+            this.attackCooldown--;
+            return;
+        }
+
+        const target = enemies.find(enemy => {
+            const dist = Math.sqrt(Math.pow(enemy.x - this.x, 2) + Math.pow(enemy.y - this.y, 2));
+            return dist <= this.range;
+        });
+
+        if (target) {
+            projectiles.push(new Projectile(this.x, this.y, target, this.damage, 4, 50)); // speed=4, splashRadius=50
+            this.attackCooldown = this.attackSpeed;
+        }
     }
   }
 
@@ -189,6 +225,7 @@ onMounted(() => {
       this.height = 20;
       this.speed = speed;
       this.health = health;
+      this.maxHealth = health;
       this.pathIndex = 0;
       this.isAttackingWall = false;
     }
@@ -237,15 +274,56 @@ onMounted(() => {
     draw() {
       ctx.fillStyle = 'red';
       ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+      
+      // Draw health bar
+      const healthBarWidth = this.width;
+      const healthBarHeight = 5;
+      const healthBarX = this.x - this.width / 2;
+      const healthBarY = this.y - this.height / 2 - 7;
+
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+      ctx.fillStyle = 'lime';
+      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
+      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+    }
+  }
+
+  class Tank extends Enemy {
+    constructor(x, y) {
+      super(x, y, 0.5, 400); // speed, health
+      this.width = 30;
+      this.height = 30;
+    }
+
+    draw() {
+      ctx.fillStyle = 'purple';
+      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+
+      // Draw health bar
+      const healthBarWidth = this.width;
+      const healthBarHeight = 5;
+      const healthBarX = this.x - this.width / 2;
+      const healthBarY = this.y - this.height / 2 - 7;
+
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+      ctx.fillStyle = 'lime';
+      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
+      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
     }
   }
 
   // Function to spawn enemies
   function spawnEnemy() {
-    enemies.push(new Enemy(path[0].x, path[0].y));
+    if (Math.random() < 0.2) { // 20% chance to spawn a Tank
+        enemies.push(new Tank(path[0].x, path[0].y));
+    } else {
+        enemies.push(new Enemy(path[0].x, path[0].y));
+    }
   }
-
-  
 
   // Add defense areas for testing
   defenseAreas.push(new DefenseArea(50, 150, 80, 80)); // Area 1
@@ -294,8 +372,22 @@ onMounted(() => {
 
     // Update projectiles
     for (let i = projectiles.length - 1; i >= 0; i--) {
-      if (projectiles[i].move()) {
-        projectiles[i].target.health -= projectiles[i].damage;
+      const p = projectiles[i];
+      if (p.move()) {
+        // Apply damage to the main target
+        p.target.health -= p.damage;
+
+        // If there's a splash radius, apply splash damage
+        if (p.splashRadius > 0) {
+          enemies.forEach(enemy => {
+            if (enemy !== p.target) { // Don't re-damage the main target
+              const dist = Math.sqrt(Math.pow(enemy.x - p.target.x, 2) + Math.pow(enemy.y - p.target.y, 2));
+              if (dist <= p.splashRadius) {
+                enemy.health -= p.damage / 2; // Splash damage is half
+              }
+            }
+          });
+        }
         projectiles.splice(i, 1);
       }
     }
@@ -387,6 +479,12 @@ onMounted(() => {
         towers.push(new Tower(x, y));
       } else {
         console.log("Cannot place tower on path!");
+      }
+    } else if (selectedUnitType.value === 'cannon') {
+      if (!isNearPath(x, y)) {
+        towers.push(new Cannon(x, y));
+      } else {
+        console.log("Cannot place cannon on path!");
       }
     } else if (selectedUnitType.value === 'wall') {
       if (isNearPath(x, y)) {
