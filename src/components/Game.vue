@@ -228,8 +228,10 @@ onMounted(() => {
   // Event listener for tower placement
   canvas.addEventListener('click', (event) => {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
 
     // Basic check to prevent placing towers on the path
     if (!isOnPath(x, y)) {
