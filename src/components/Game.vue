@@ -207,6 +207,19 @@ onMounted(() => {
         collidedWall.health -= 1; // Reduce wall health over time
       } else {
         this.isAttackingWall = false;
+
+        // Check for collision with defense areas
+        const inDefenseArea = defenseAreas.find(area => {
+          return this.x > area.x - area.width / 2 &&
+                 this.x < area.x + area.width / 2 &&
+                 this.y > area.y - area.height / 2 &&
+                 this.y < area.y + area.height / 2;
+        });
+
+        if (inDefenseArea) {
+          this.health -= 0.5; // Enemy takes damage over time in defense area
+        }
+
         if (this.pathIndex < path.length - 1) {
           const target = path[this.pathIndex + 1];
           const dx = target.x - this.x;
@@ -300,6 +313,37 @@ onMounted(() => {
     for (let i = walls.length - 1; i >= 0; i--) {
       if (walls[i].health <= 0) {
         walls.splice(i, 1);
+      }
+    }
+
+    // Remove destroyed defense areas and their contained units
+    for (let i = defenseAreas.length - 1; i >= 0; i--) {
+      if (defenseAreas[i].health <= 0) {
+        const destroyedArea = defenseAreas[i];
+
+        // Remove towers within the destroyed area
+        for (let j = towers.length - 1; j >= 0; j--) {
+          const tower = towers[j];
+          if (tower.x > destroyedArea.x - destroyedArea.width / 2 &&
+              tower.x < destroyedArea.x + destroyedArea.width / 2 &&
+              tower.y > destroyedArea.y - destroyedArea.height / 2 &&
+              tower.y < destroyedArea.y + destroyedArea.height / 2) {
+            towers.splice(j, 1);
+          }
+        }
+
+        // Remove walls within the destroyed area
+        for (let j = walls.length - 1; j >= 0; j--) {
+          const wall = walls[j];
+          if (wall.x > destroyedArea.x - destroyedArea.width / 2 &&
+              wall.x < destroyedArea.x + destroyedArea.width / 2 &&
+              wall.y > destroyedArea.y - destroyedArea.height / 2 &&
+              wall.y < destroyedArea.y + destroyedArea.height / 2) {
+            walls.splice(j, 1);
+          }
+        }
+
+        defenseAreas.splice(i, 1);
       }
     }
 
