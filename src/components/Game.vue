@@ -1,6 +1,10 @@
 <template>
   <div class="game-container">
     <h1>Vue Tower Defense</h1>
+    <div class="controls">
+      <button @click="selectUnit('tower')">Place Tower</button>
+      <button @click="selectUnit('wall')">Place Wall</button>
+    </div>
     <canvas ref="gameCanvas" width="450" height="800"></canvas>
   </div>
 </template>
@@ -9,6 +13,12 @@
 import { ref, onMounted } from 'vue';
 
 const gameCanvas = ref(null);
+const selectedUnitType = ref(null); // 'tower' or 'wall'
+
+const selectUnit = (type) => {
+  selectedUnitType.value = type;
+  console.log(`Selected: ${type}`);
+};
 
 onMounted(() => {
   const canvas = gameCanvas.value;
@@ -192,8 +202,7 @@ onMounted(() => {
     enemies.push(new Enemy(path[0].x, path[0].y));
   }
 
-  // Add a wall for testing
-  walls.push(new Wall(225, 300));
+  
 
   // Draw everything
   function draw() {
@@ -260,21 +269,23 @@ onMounted(() => {
     requestAnimationFrame(gameLoop);
   }
 
-  // Helper function to check if a point is on the path
-  function isOnPath(x, y) {
-    // This is a simplified check. A more robust solution would check distance to path segments.
-    // For now, we'll just check if it's within the general path area.
+  // Helper function to check if a point is on or near the path
+  function isNearPath(x, y, tolerance = 15) {
     for (let i = 0; i < path.length - 1; i++) {
       const p1 = path[i];
-      const p2 = path[i+1];
-      // Check if x is between p1.x and p2.x (inclusive) and y is between p1.y and p2.y (inclusive)
-      // Considering the path width (20)
-      const minX = Math.min(p1.x, p2.x) - 10;
-      const maxX = Math.max(p1.x, p2.x) + 10;
-      const minY = Math.min(p1.y, p2.y) - 10;
-      const maxY = Math.max(p1.y, p2.y) + 10;
+      const p2 = path[i + 1];
 
-      if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const lengthSq = dx * dx + dy * dy;
+      let t = ((x - p1.x) * dx + (y - p1.y) * dy) / lengthSq;
+      t = Math.max(0, Math.min(1, t));
+
+      const closestX = p1.x + t * dx;
+      const closestY = p1.y + t * dy;
+
+      const distSq = Math.pow(x - closestX, 2) + Math.pow(y - closestY, 2);
+      if (distSq <= tolerance * tolerance) {
         return true;
       }
     }
@@ -289,11 +300,20 @@ onMounted(() => {
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    // Basic check to prevent placing towers on the path
-    if (!isOnPath(x, y)) {
-      towers.push(new Tower(x, y));
+    if (selectedUnitType.value === 'tower') {
+      if (!isNearPath(x, y)) {
+        towers.push(new Tower(x, y));
+      } else {
+        console.log("Cannot place tower on path!");
+      }
+    } else if (selectedUnitType.value === 'wall') {
+      if (isNearPath(x, y)) {
+        walls.push(new Wall(x, y));
+      } else {
+        console.log("Can only place walls on the path!");
+      }
     } else {
-      console.log("Cannot place tower on path!");
+      console.log("No unit type selected.");
     }
   });
 
@@ -307,6 +327,18 @@ onMounted(() => {
 .game-container {
   text-align: center;
 }
+
+.controls {
+  margin-bottom: 10px;
+}
+
+.controls button {
+  padding: 10px 20px;
+  margin: 0 5px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
 canvas {
   border: 1px solid black;
   background-color: #f0f0f0;
