@@ -202,24 +202,22 @@ onMounted(() => {
                this.y + this.height / 2 > wall.y - wall.height / 2;
       });
 
+      // Check for collision with defense areas
+      const collidedDefenseArea = defenseAreas.find(area => {
+        return this.x < area.x + area.width / 2 &&
+               this.x + this.width / 2 > area.x - area.width / 2 &&
+               this.y < area.y + area.height / 2 &&
+               this.y + this.height / 2 > area.y - area.height / 2;
+      });
+
       if (collidedWall) {
         this.isAttackingWall = true;
         collidedWall.health -= 1; // Reduce wall health over time
+      } else if (collidedDefenseArea) {
+        this.isAttackingWall = true; // Treat as attacking a wall for now, can be refined later
+        collidedDefenseArea.health -= 1; // Reduce defense area health over time
       } else {
         this.isAttackingWall = false;
-
-        // Check for collision with defense areas
-        const inDefenseArea = defenseAreas.find(area => {
-          return this.x > area.x - area.width / 2 &&
-                 this.x < area.x + area.width / 2 &&
-                 this.y > area.y - area.height / 2 &&
-                 this.y < area.y + area.height / 2;
-        });
-
-        if (inDefenseArea) {
-          this.health -= 0.5; // Enemy takes damage over time in defense area
-        }
-
         if (this.pathIndex < path.length - 1) {
           const target = path[this.pathIndex + 1];
           const dx = target.x - this.x;
@@ -250,9 +248,9 @@ onMounted(() => {
   
 
   // Add defense areas for testing
-  defenseAreas.push(new DefenseArea(100, 100, 100, 100));
-  defenseAreas.push(new DefenseArea(350, 200, 100, 100));
-  defenseAreas.push(new DefenseArea(100, 600, 100, 100));
+  defenseAreas.push(new DefenseArea(50, 150, 80, 80)); // Area 1
+  defenseAreas.push(new DefenseArea(225, 300, 80, 80)); // Area 2
+  defenseAreas.push(new DefenseArea(400, 525, 80, 80)); // Area 3
 
   // Draw everything
   function draw() {
