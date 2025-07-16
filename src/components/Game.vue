@@ -157,20 +157,25 @@ onMounted(() => {
     // Update projectiles
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const p = projectiles[i];
-      if (p.move()) {
-        // Apply damage to the main target
-        p.target.health -= p.damage;
+      const targetStillExists = enemies.includes(p.target);
 
-        // If there's a splash radius, apply splash damage
-        if (p.splashRadius > 0) {
-          enemies.forEach(enemy => {
-            if (enemy !== p.target) { // Don't re-damage the main target
-              const dist = Math.sqrt(Math.pow(enemy.x - p.target.x, 2) + Math.pow(enemy.y - p.target.y, 2));
-              if (dist <= p.splashRadius) {
-                enemy.health -= p.damage / 2; // Splash damage is half
-              }
+      // If target is gone or projectile reaches target, remove projectile
+      if (!targetStillExists || p.move()) {
+        // If target exists and we are at the target, apply damage
+        if (targetStillExists) {
+            p.target.health -= p.damage;
+
+            // Apply splash damage
+            if (p.splashRadius > 0) {
+                enemies.forEach(enemy => {
+                    if (enemy !== p.target) {
+                        const dist = Math.sqrt(Math.pow(enemy.x - p.target.x, 2) + Math.pow(enemy.y - p.target.y, 2));
+                        if (dist <= p.splashRadius) {
+                            enemy.health -= p.damage / 2;
+                        }
+                    }
+                });
             }
-          });
         }
         projectiles.splice(i, 1);
       }
