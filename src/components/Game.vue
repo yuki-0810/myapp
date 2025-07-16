@@ -1,10 +1,27 @@
 <template>
   <div class="game-container">
     <h1>Vue Tower Defense</h1>
+    <div class="stats">
+      <span>Money: {{ money }}</span>
+      <span>Score: {{ score }}</span>
+    </div>
     <div class="controls">
-      <button @click="selectUnit('tower')">Place Tower</button>
-      <button @click="selectUnit('cannon')">Place Cannon</button>
-      <button @click="selectUnit('wall')">Place Wall</button>
+      <button @click="selectUnit('base')">Place Base (50)</button>
+      <button @click="selectUnit('wall')">Place Wall (20)</button>
+    </div>
+
+    <!-- Module Selection Panel -->
+    <div v-if="selectedBase && !selectedBase.module" class="module-panel">
+      <h4>Build Module</h4>
+      <button @click="buildModule('machine_gun')" :disabled="money < 100">Machine Gun (100)</button>
+      <button v-if="cannonResearched" @click="buildModule('cannon')" :disabled="money < 250">Cannon (250)</button>
+      <button @click="selectedBase = null">Cancel</button>
+    </div>
+
+    <div class="research">
+      <button v-if="!cannonResearched" @click="researchCannon" :disabled="money < cannonResearchCost">
+        Research Cannon ({{ cannonResearchCost }})
+      </button>
     </div>
     <canvas ref="gameCanvas" width="450" height="800"></canvas>
   </div>
@@ -14,11 +31,25 @@
 import { ref, onMounted } from 'vue';
 
 const gameCanvas = ref(null);
-const selectedUnitType = ref(null); // 'tower', 'wall', or 'cannon'
+const selectedUnitType = ref(null);
+const money = ref(200); // Starting money
+const score = ref(0);
+const cannonResearched = ref(false);
+const cannonResearchCost = 500;
+const selectedBase = ref(null); // To track the clicked base for module building
 
 const selectUnit = (type) => {
   selectedUnitType.value = type;
+  selectedBase.value = null; // Deselect any base when choosing a new unit to place
   console.log(`Selected: ${type}`);
+};
+
+const researchCannon = () => {
+  if (money.value >= cannonResearchCost) {
+    money.value -= cannonResearchCost;
+    cannonResearched.value = true;
+    console.log("Cannon researched!");
+  }
 };
 
 onMounted(() => {
@@ -31,7 +62,6 @@ onMounted(() => {
   }
 
   // Game variables
-  let score = 0;
   const path = [
     { x: 50, y: 0 },
     { x: 50, y: 300 },
@@ -41,7 +71,7 @@ onMounted(() => {
   ];
 
   const enemies = [];
-  const towers = [];
+  const bases = []; // Replaces towers array
   const projectiles = [];
   const walls = [];
   const defenseAreas = [];
@@ -82,79 +112,100 @@ onMounted(() => {
     }
   }
 
-  class Tower {
-    constructor(x, y, range = 150, damage = 20, attackSpeed = 60) { // attackSpeed in frames
-      this.x = x;
-      this.y = y;
-      this.width = 40;
-      this.height = 40;
-      this.range = range;
-      this.damage = damage;
-      this.attackSpeed = attackSpeed;
-      this.attackCooldown = 0;
-    }
-
-    draw() {
-      ctx.fillStyle = 'blue';
-      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-
-      // Draw range circle (for debugging)
-      ctx.strokeStyle = 'rgba(0, 0, 255, 0.3)';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    update() {
-      if (this.attackCooldown > 0) {
-        this.attackCooldown--;
-        return;
+  class Base {
+      constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.width = 40;
+          this.height = 40;
+          this.cost = 50;
+          this.module = null; // To hold the weapon module
       }
 
-      const target = enemies.find(enemy => {
-        const dist = Math.sqrt(Math.pow(enemy.x - this.x, 2) + Math.pow(enemy.y - this.y, 2));
-        return dist <= this.range;
-      });
-
-      if (target) {
-        projectiles.push(new Projectile(this.x, this.y, target, this.damage));
-        this.attackCooldown = this.attackSpeed;
+      draw() {
+          ctx.fillStyle = '#aaa';
+          ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+          if (this.module) {
+              this.module.draw();
+          }
       }
-    }
+
+      update() {
+          if (this.module) {
+              this.module.update();
+          }
+      }
   }
 
-  class Cannon extends Tower {
-    constructor(x, y) {
-        super(x, y, 120, 40, 180); // range, damage, attackSpeed
-    }
+  class MachineGunModule {
+      constructor(base) {
+          this.base = base;
+          this.range = 150;
+          this.damage = 20;
+          this.attackSpeed = 60; // in frames
+          this.attackCooldown = 0;
+          this.cost = 100;
+      }
 
-    draw() {
-        ctx.fillStyle = 'darkgreen';
-        ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+      draw() {
+          ctx.fillStyle = 'blue';
+          ctx.fillRect(this.base.x - 15, this.base.y - 15, 30, 30);
+          // Draw range circle
+          ctx.strokeStyle = 'rgba(0, 0, 255, 0.3)';
+          ctx.beginPath();
+          ctx.arc(this.base.x, this.base.y, this.range, 0, Math.PI * 2);
+          ctx.stroke();
+      }
 
-        // Draw range circle
-        ctx.strokeStyle = 'rgba(0, 100, 0, 0.3)';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
-        ctx.stroke();
-    }
+      update() {
+          if (this.attackCooldown > 0) {
+              this.attackCooldown--;
+              return;
+          }
+          const target = enemies.find(enemy => {
+              const dist = Math.sqrt(Math.pow(enemy.x - this.base.x, 2) + Math.pow(enemy.y - this.base.y, 2));
+              return dist <= this.range;
+          });
+          if (target) {
+              projectiles.push(new Projectile(this.base.x, this.base.y, target, this.damage));
+              this.attackCooldown = this.attackSpeed;
+          }
+      }
+  }
 
-    update() {
-        if (this.attackCooldown > 0) {
-            this.attackCooldown--;
-            return;
-        }
+  class CannonModule {
+      constructor(base) {
+          this.base = base;
+          this.range = 120;
+          this.damage = 40;
+          this.attackSpeed = 180; // in frames
+          this.cost = 250;
+      }
 
-        const target = enemies.find(enemy => {
-            const dist = Math.sqrt(Math.pow(enemy.x - this.x, 2) + Math.pow(enemy.y - this.y, 2));
-            return dist <= this.range;
-        });
+      draw() {
+          ctx.fillStyle = 'darkgreen';
+          ctx.fillRect(this.base.x - 20, this.base.y - 20, 40, 40);
+          // Draw range circle
+          ctx.strokeStyle = 'rgba(0, 100, 0, 0.3)';
+          ctx.beginPath();
+          ctx.arc(this.base.x, this.base.y, this.range, 0, Math.PI * 2);
+          ctx.stroke();
+      }
 
-        if (target) {
-            projectiles.push(new Projectile(this.x, this.y, target, this.damage, 4, 50)); // speed=4, splashRadius=50
-            this.attackCooldown = this.attackSpeed;
-        }
-    }
+      update() {
+          if (this.attackCooldown > 0) {
+              this.attackCooldown--;
+              return;
+          }
+          const target = enemies.find(enemy => {
+              const dist = Math.sqrt(Math.pow(enemy.x - this.base.x, 2) + Math.pow(enemy.y - this.base.y, 2));
+              return dist <= this.range;
+          });
+          if (target) {
+              projectiles.push(new Projectile(this.base.x, this.base.y, target, this.damage, 4, 50)); // speed=4, splashRadius=50
+              this.attackCooldown = this.attackSpeed;
+          }
+      }
   }
 
   class Wall {
@@ -165,6 +216,7 @@ onMounted(() => {
       this.height = 40;
       this.health = health;
       this.maxHealth = health;
+      this.cost = 20;
     }
 
     draw() {
@@ -228,6 +280,7 @@ onMounted(() => {
       this.maxHealth = health;
       this.pathIndex = 0;
       this.isAttackingWall = false;
+      this.reward = 10;
     }
 
     move() {
@@ -295,6 +348,7 @@ onMounted(() => {
       super(x, y, 0.5, 400); // speed, health
       this.width = 30;
       this.height = 30;
+      this.reward = 50;
     }
 
     draw() {
@@ -352,8 +406,8 @@ onMounted(() => {
     // Draw enemies
     enemies.forEach(enemy => enemy.draw());
 
-    // Draw towers
-    towers.forEach(tower => tower.draw());
+    // Draw bases and their modules
+    bases.forEach(base => base.draw());
 
     // Draw projectiles
     projectiles.forEach(projectile => projectile.draw());
@@ -367,8 +421,8 @@ onMounted(() => {
     // Update game state
     enemies.forEach(enemy => enemy.move());
 
-    // Update towers
-    towers.forEach(tower => tower.update());
+    // Update bases and their modules
+    bases.forEach(base => base.update());
 
     // Update projectiles
     for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -395,6 +449,8 @@ onMounted(() => {
     // Remove dead enemies
     for (let i = enemies.length - 1; i >= 0; i--) {
       if (enemies[i].health <= 0) {
+        money.value += enemies[i].reward;
+        score.value += enemies[i].reward;
         enemies.splice(i, 1);
       }
     }
@@ -411,14 +467,14 @@ onMounted(() => {
       if (defenseAreas[i].health <= 0) {
         const destroyedArea = defenseAreas[i];
 
-        // Remove towers within the destroyed area
-        for (let j = towers.length - 1; j >= 0; j--) {
-          const tower = towers[j];
-          if (tower.x > destroyedArea.x - destroyedArea.width / 2 &&
-              tower.x < destroyedArea.x + destroyedArea.width / 2 &&
-              tower.y > destroyedArea.y - destroyedArea.height / 2 &&
-              tower.y < destroyedArea.y + destroyedArea.height / 2) {
-            towers.splice(j, 1);
+        // Remove bases within the destroyed area
+        for (let j = bases.length - 1; j >= 0; j--) {
+          const base = bases[j];
+          if (base.x > destroyedArea.x - destroyedArea.width / 2 &&
+              base.x < destroyedArea.x + destroyedArea.width / 2 &&
+              base.y > destroyedArea.y - destroyedArea.height / 2 &&
+              base.y < destroyedArea.y + destroyedArea.height / 2) {
+            bases.splice(j, 1);
           }
         }
 
@@ -466,7 +522,27 @@ onMounted(() => {
     return false;
   }
 
-  // Event listener for tower placement
+  window.buildModule = (moduleType) => {
+      if (!selectedBase.value || selectedBase.value.module) return;
+
+      const modules = {
+          machine_gun: MachineGunModule,
+          cannon: CannonModule
+      };
+      const moduleClass = modules[moduleType];
+      if (!moduleClass) return;
+
+      const cost = new moduleClass(null).cost;
+      if (money.value >= cost) {
+          money.value -= cost;
+          selectedBase.value.module = new moduleClass(selectedBase.value);
+          selectedBase.value = null; // Hide panel
+      } else {
+          console.log("Not enough money for this module!");
+      }
+  };
+
+  // Event listener for canvas clicks
   canvas.addEventListener('click', (event) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -474,26 +550,48 @@ onMounted(() => {
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    if (selectedUnitType.value === 'tower') {
+    // Check if clicking on an existing base
+    const clickedBase = bases.find(b => 
+        x >= b.x - b.width / 2 && x <= b.x + b.width / 2 &&
+        y >= b.y - b.height / 2 && y <= b.y + b.height / 2
+    );
+
+    if (clickedBase) {
+        if (!clickedBase.module) {
+            selectedBase.value = clickedBase;
+            selectedUnitType.value = null; // Stop placing new units
+        }
+        return;
+    }
+
+    if (selectedBase.value) {
+        selectedBase.value = null;
+        return;
+    }
+
+    const unitCosts = { base: 50, wall: 20 };
+    const cost = unitCosts[selectedUnitType.value];
+
+    if (!cost) return;
+    if (money.value < cost) {
+        console.log("Not enough money!");
+        return;
+    }
+
+    if (selectedUnitType.value === 'base') {
       if (!isNearPath(x, y)) {
-        towers.push(new Tower(x, y));
+        bases.push(new Base(x, y));
+        money.value -= cost;
       } else {
-        console.log("Cannot place tower on path!");
-      }
-    } else if (selectedUnitType.value === 'cannon') {
-      if (!isNearPath(x, y)) {
-        towers.push(new Cannon(x, y));
-      } else {
-        console.log("Cannot place cannon on path!");
+        console.log(`Cannot place base on path!`);
       }
     } else if (selectedUnitType.value === 'wall') {
       if (isNearPath(x, y)) {
         walls.push(new Wall(x, y));
+        money.value -= cost;
       } else {
         console.log("Can only place walls on the path!");
       }
-    } else {
-      console.log("No unit type selected.");
     }
   });
 
@@ -508,15 +606,35 @@ onMounted(() => {
   text-align: center;
 }
 
-.controls {
+.stats {
+  margin-bottom: 10px;
+  font-size: 1.2em;
+}
+
+.stats span {
+  margin: 0 15px;
+}
+
+.controls, .research, .module-panel {
   margin-bottom: 10px;
 }
 
-.controls button {
+.controls button, .research button, .module-panel button {
   padding: 10px 20px;
   margin: 0 5px;
   font-size: 16px;
   cursor: pointer;
+}
+
+.module-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 2px solid black;
+    padding: 20px;
+    z-index: 10;
 }
 
 canvas {
