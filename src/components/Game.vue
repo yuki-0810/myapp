@@ -105,9 +105,9 @@ onMounted(() => {
   const defenseAreas = [];
 
   // Define defense areas for each path
-  const defenseArea1 = new DefenseArea(50, 750, 80, 80); // End of Path 1
-  const defenseArea2 = new DefenseArea(225, 750, 80, 80); // End of Path 2
-  const defenseArea3 = new DefenseArea(400, 750, 80, 80); // End of Path 3
+  const defenseArea1 = new DefenseArea(225, 700, 450, 50); // End of Path 1
+  const defenseArea2 = new DefenseArea(225, 750, 450, 50); // End of Path 2
+  const defenseArea3 = new DefenseArea(225, 800, 450, 50); // End of Path 3
 
   defenseAreas.push(defenseArea1, defenseArea2, defenseArea3);
 

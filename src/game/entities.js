@@ -193,7 +193,7 @@ export class DefenseArea {
 }
 
 export class Enemy {
-  constructor(x, y, speed = 1, health = 100, path, targetDefenseArea) {
+  constructor(x, y, path, targetDefenseArea, speed = 1, health = 100) {
     this.x = x;
     this.y = y;
     this.width = 20;
