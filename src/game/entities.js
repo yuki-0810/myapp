@@ -193,7 +193,7 @@ export class DefenseArea {
 }
 
 export class Enemy {
-  constructor(x, y, speed = 1, health = 100) {
+  constructor(x, y, speed = 1, health = 100, path, targetDefenseArea) {
     this.x = x;
     this.y = y;
     this.width = 20;
@@ -201,12 +201,14 @@ export class Enemy {
     this.speed = speed;
     this.health = health;
     this.maxHealth = health;
+    this.path = path; // Assigned path
+    this.targetDefenseArea = targetDefenseArea; // Target defense area
     this.pathIndex = 0;
     this.isAttackingWall = false;
     this.reward = 10;
   }
 
-  move(path, walls, defenseAreas) {
+  move(walls, defenseAreas) {
     // Check for collision with walls
     const collidedWall = walls.find(wall => {
       return this.x < wall.x + wall.width / 2 &&
@@ -231,8 +233,8 @@ export class Enemy {
       collidedDefenseArea.health -= 1; // Reduce defense area health over time
     } else {
       this.isAttackingWall = false;
-      if (this.pathIndex < path.length - 1) {
-        const target = path[this.pathIndex + 1];
+      if (this.pathIndex < this.path.length - 1) {
+        const target = this.path[this.pathIndex + 1];
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -240,6 +242,16 @@ export class Enemy {
         if (distance < this.speed) {
           this.pathIndex++;
         } else {
+          this.x += (dx / distance) * this.speed;
+          this.y += (dy / distance) * this.speed;
+        }
+      } else { // Reached end of path, move towards targetDefenseArea
+        const target = this.targetDefenseArea;
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 0) { // Only move if not already at target
           this.x += (dx / distance) * this.speed;
           this.y += (dy / distance) * this.speed;
         }
@@ -267,8 +279,8 @@ export class Enemy {
 }
 
 export class Tank extends Enemy {
-  constructor(x, y) {
-    super(x, y, 0.5, 400); // speed, health
+  constructor(x, y, path, targetDefenseArea) {
+    super(x, y, 0.5, 400, path, targetDefenseArea); // speed, health, path, targetDefenseArea
     this.width = 30;
     this.height = 30;
     this.reward = 50;

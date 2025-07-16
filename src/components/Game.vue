@@ -86,12 +86,16 @@ onMounted(() => {
   }
 
   // Game variables
-  const path = [
-    { x: 50, y: 0 },
-    { x: 50, y: 300 },
-    { x: 400, y: 300 },
-    { x: 400, y: 750 },
-    { x: 400, y: 800 },
+  const paths = [
+    [ // Path 1 (Top)
+      { x: 50, y: 0 }, { x: 50, y: 150 }, { x: 200, y: 150 }, { x: 200, y: 300 }, { x: 50, y: 300 }, { x: 50, y: 450 }, { x: 200, y: 450 }, { x: 200, y: 600 }, { x: 50, y: 600 }, { x: 50, y: 800 }
+    ],
+    [ // Path 2 (Middle)
+      { x: 225, y: 0 }, { x: 225, y: 250 }, { x: 350, y: 250 }, { x: 350, y: 500 }, { x: 225, y: 500 }, { x: 225, y: 800 }
+    ],
+    [ // Path 3 (Bottom)
+      { x: 400, y: 0 }, { x: 400, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 400 }, { x: 400, y: 400 }, { x: 400, y: 700 }, { x: 300, y: 700 }, { x: 300, y: 800 }
+    ]
   ];
 
   const enemies = [];
@@ -100,19 +104,25 @@ onMounted(() => {
   const walls = [];
   const defenseAreas = [];
 
+  // Define defense areas for each path
+  const defenseArea1 = new DefenseArea(50, 750, 80, 80); // End of Path 1
+  const defenseArea2 = new DefenseArea(225, 750, 80, 80); // End of Path 2
+  const defenseArea3 = new DefenseArea(400, 750, 80, 80); // End of Path 3
+
+  defenseAreas.push(defenseArea1, defenseArea2, defenseArea3);
+
   // Function to spawn enemies
   function spawnEnemy() {
+    const randomPathIndex = Math.floor(Math.random() * paths.length);
+    const selectedPath = paths[randomPathIndex];
+    const targetDefenseArea = defenseAreas[randomPathIndex];
+
     if (Math.random() < 0.2) { // 20% chance to spawn a Tank
-        enemies.push(new Tank(path[0].x, path[0].y));
+        enemies.push(new Tank(selectedPath[0].x, selectedPath[0].y, selectedPath, targetDefenseArea));
     } else {
-        enemies.push(new Enemy(path[0].x, path[0].y));
+        enemies.push(new Enemy(selectedPath[0].x, selectedPath[0].y, selectedPath, targetDefenseArea));
     }
   }
-
-  // Add defense areas for testing
-  defenseAreas.push(new DefenseArea(50, 150, 80, 80)); // Area 1
-  defenseAreas.push(new DefenseArea(225, 300, 80, 80)); // Area 2
-  defenseAreas.push(new DefenseArea(400, 525, 80, 80)); // Area 3
 
   // Draw everything
   function draw() {
@@ -120,15 +130,17 @@ onMounted(() => {
     ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw path
+    // Draw paths
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 20;
-    ctx.beginPath();
-    ctx.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) {
-      ctx.lineTo(path[i].x, path[i].y);
-    }
-    ctx.stroke();
+    paths.forEach(path => {
+      ctx.beginPath();
+      ctx.moveTo(path[0].x, path[0].y);
+      for (let i = 1; i < path.length; i++) {
+        ctx.lineTo(path[i].x, path[i].y);
+      }
+      ctx.stroke();
+    });
 
     // Draw defense areas
     defenseAreas.forEach(area => area.draw(ctx));
@@ -149,7 +161,7 @@ onMounted(() => {
   // Game loop
   function gameLoop() {
     // Update game state
-    enemies.forEach(enemy => enemy.move(path, walls, defenseAreas));
+    enemies.forEach(enemy => enemy.move(walls, defenseAreas));
 
     // Update bases and their modules
     bases.forEach(base => base.update(enemies, projectiles));
@@ -236,22 +248,25 @@ onMounted(() => {
 
   // Helper function to check if a point is on or near the path
   function isNearPath(x, y, tolerance = 15) {
-    for (let i = 0; i < path.length - 1; i++) {
-      const p1 = path[i];
-      const p2 = path[i + 1];
+    // Check all paths
+    for (const path of paths) {
+      for (let i = 0; i < path.length - 1; i++) {
+        const p1 = path[i];
+        const p2 = path[i + 1];
 
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const lengthSq = dx * dx + dy * dy;
-      let t = ((x - p1.x) * dx + (y - p1.y) * dy) / lengthSq;
-      t = Math.max(0, Math.min(1, t));
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const lengthSq = dx * dx + dy * dy;
+        let t = ((x - p1.x) * dx + (y - p1.y) * dy) / lengthSq;
+        t = Math.max(0, Math.min(1, t));
 
-      const closestX = p1.x + t * dx;
-      const closestY = p1.y + t * dy;
+        const closestX = p1.x + t * dx;
+        const closestY = p1.y + t * dy;
 
-      const distSq = Math.pow(x - closestX, 2) + Math.pow(y - closestY, 2);
-      if (distSq <= tolerance * tolerance) {
-        return true;
+        const distSq = Math.pow(x - closestX, 2) + Math.pow(y - closestY, 2);
+        if (distSq <= tolerance * tolerance) {
+          return true;
+        }
       }
     }
     return false;
@@ -265,7 +280,28 @@ onMounted(() => {
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    // Check if clicking on an existing base
+    // Check if clicking on an existing wall for repair
+    if (selectedUnitType.value === 'repair_wall') {
+        const clickedWall = walls.find(w => 
+            x >= w.x - w.width / 2 && x <= w.x + w.width / 2 &&
+            y >= w.y - w.height / 2 && y <= w.y + w.height / 2
+        );
+        if (clickedWall) {
+            const repairCost = 10; // Cost to repair a wall
+            if (money.value >= repairCost && clickedWall.health < clickedWall.maxHealth) {
+                money.value -= repairCost;
+                clickedWall.health = clickedWall.maxHealth; // Fully repair
+                console.log("Wall repaired!");
+            } else if (money.value < repairCost) {
+                console.log("Not enough money to repair!");
+            } else {
+                console.log("Wall is already at full health!");
+            }
+        }
+        return;
+    }
+
+    // Check if clicking on an existing base for module building
     const clickedBase = bases.find(b => 
         x >= b.x - b.width / 2 && x <= b.x + b.width / 2 &&
         y >= b.y - b.height / 2 && y <= b.y + b.height / 2
