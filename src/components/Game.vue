@@ -94,12 +94,14 @@ onMounted(() => {
 
   // Define defense areas
   const areaWidth = canvas.width * 0.9;
-  const areaHeight = 50;
   const centerX = canvas.width / 2;
+  const topMargin = canvas.height * 0.2;
+  const remainingHeight = canvas.height - topMargin;
+  const areaHeight = remainingHeight / 3;
 
-  const defenseArea1 = new DefenseArea(centerX, canvas.height * 0.2, areaWidth, areaHeight);
-  const defenseArea2 = new DefenseArea(centerX, canvas.height * 0.5, areaWidth, areaHeight);
-  const defenseArea3 = new DefenseArea(centerX, canvas.height * 0.8, areaWidth, areaHeight);
+  const defenseArea1 = new DefenseArea(centerX, topMargin + areaHeight / 2, areaWidth, areaHeight);
+  const defenseArea2 = new DefenseArea(centerX, topMargin + areaHeight * 1.5, areaWidth, areaHeight);
+  const defenseArea3 = new DefenseArea(centerX, topMargin + areaHeight * 2.5, areaWidth, areaHeight);
   defenseAreas.push(defenseArea1, defenseArea2, defenseArea3);
 
   // Define paths for each defense area
