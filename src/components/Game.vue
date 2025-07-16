@@ -213,16 +213,6 @@ onMounted(() => {
     requestAnimationFrame(gameLoop);
   }
 
-  function isNearPath(x, y, tolerance = 15) {
-    // This function is no longer accurate as paths are dynamic.
-    // For simplicity, we'll allow placement anywhere not in a defense area.
-    const inDefenseArea = defenseAreas.some(area => {
-        return x > area.x - area.width / 2 && x < area.x + area.width / 2 &&
-               y > area.y - area.height / 2 && y < area.y + area.height / 2;
-    });
-    return inDefenseArea;
-  }
-
   canvas.addEventListener('click', (event) => {
     if (!gameStarted.value) return;
     const rect = canvas.getBoundingClientRect();
@@ -250,14 +240,9 @@ onMounted(() => {
     if (!cost || money.value < cost) return;
 
     if (selectedUnitType.value === 'base') {
-      if (!isNearPath(x, y)) {
         bases.push(new Base(x, y));
         money.value -= cost;
-      } else {
-        console.log(`Cannot place base in defense area!`);
-      }
     } else if (selectedUnitType.value === 'wall') {
-        // Walls can be placed anywhere for now
         walls.push(new Wall(x, y));
         money.value -= cost;
     }
