@@ -280,7 +280,7 @@ export class Enemy {
 
 export class Tank extends Enemy {
   constructor(x, y, path, targetDefenseArea) {
-    super(x, y, 0.5, 400, path, targetDefenseArea); // speed, health, path, targetDefenseArea
+    super(x, y, path, targetDefenseArea, 0.5, 400); // x, y, path, targetDefenseArea, speed, health
     this.width = 30;
     this.height = 30;
     this.reward = 50;

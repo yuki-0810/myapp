@@ -104,30 +104,38 @@ onMounted(() => {
   const defenseArea3 = new DefenseArea(centerX, topMargin + areaHeight * 2.5, areaWidth, areaHeight);
   defenseAreas.push(defenseArea1, defenseArea2, defenseArea3);
 
-  // Define paths for each defense area
-  const paths = [
-    [ // Path 1 (Top)
-      { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 300, y: 100 }, { x: 300, y: defenseArea1.y }
-    ],
-    [ // Path 2 (Middle)
-      { x: 225, y: 0 }, { x: 225, y: 200 }, { x: 100, y: 200 }, { x: 100, y: 350 }, { x: 350, y: 350 }, { x: 350, y: defenseArea2.y }
-    ],
-    [ // Path 3 (Bottom)
-      { x: 400, y: 0 }, { x: 400, y: 150 }, { x: 150, y: 150 }, { x: 150, y: 500 }, { x: 400, y: 500 }, { x: 400, y: defenseArea3.y }
-    ]
-  ];
+  function createRandomPath(targetArea) {
+    const path = [];
+    let currentX = Math.random() * canvas.width;
+    let currentY = 0;
+    path.push({ x: currentX, y: currentY });
+
+    while (currentY < targetArea.y - targetArea.height / 2) {
+      currentX += (Math.random() - 0.5) * 200;
+      currentY += Math.random() * 100 + 50;
+
+      // Clamp to canvas bounds
+      currentX = Math.max(0, Math.min(canvas.width, currentX));
+      currentY = Math.min(currentY, targetArea.y - targetArea.height / 2);
+
+      path.push({ x: currentX, y: currentY });
+    }
+
+    path.push({ x: targetArea.x, y: targetArea.y });
+    return path;
+  }
 
   // Function to spawn enemies
   function spawnEnemy() {
     if (!gameStarted.value) return;
-    const randomPathIndex = Math.floor(Math.random() * paths.length);
-    const selectedPath = paths[randomPathIndex];
+    const randomPathIndex = Math.floor(Math.random() * defenseAreas.length);
     const targetDefenseArea = defenseAreas[randomPathIndex];
+    const newPath = createRandomPath(targetDefenseArea);
 
     if (Math.random() < 0.2) { // 20% chance to spawn a Tank
-        enemies.push(new Tank(selectedPath[0].x, selectedPath[0].y, selectedPath, targetDefenseArea));
+        enemies.push(new Tank(newPath[0].x, newPath[0].y, newPath, targetDefenseArea));
     } else {
-        enemies.push(new Enemy(selectedPath[0].x, selectedPath[0].y, selectedPath, targetDefenseArea));
+        enemies.push(new Enemy(newPath[0].x, newPath[0].y, newPath, targetDefenseArea));
     }
   }
 
@@ -135,17 +143,6 @@ onMounted(() => {
   function draw() {
     ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = '#ccc';
-    ctx.lineWidth = 20;
-    paths.forEach(path => {
-      ctx.beginPath();
-      ctx.moveTo(path[0].x, path[0].y);
-      for (let i = 1; i < path.length; i++) {
-        ctx.lineTo(path[i].x, path[i].y);
-      }
-      ctx.stroke();
-    });
 
     defenseAreas.forEach(area => area.draw(ctx));
     enemies.forEach(enemy => enemy.draw(ctx));
@@ -217,24 +214,13 @@ onMounted(() => {
   }
 
   function isNearPath(x, y, tolerance = 15) {
-    for (const path of paths) {
-      for (let i = 0; i < path.length - 1; i++) {
-        const p1 = path[i];
-        const p2 = path[i + 1];
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const lengthSq = dx * dx + dy * dy;
-        let t = ((x - p1.x) * dx + (y - p1.y) * dy) / lengthSq;
-        t = Math.max(0, Math.min(1, t));
-        const closestX = p1.x + t * dx;
-        const closestY = p1.y + t * dy;
-        const distSq = Math.pow(x - closestX, 2) + Math.pow(y - closestY, 2);
-        if (distSq <= tolerance * tolerance) {
-          return true;
-        }
-      }
-    }
-    return false;
+    // This function is no longer accurate as paths are dynamic.
+    // For simplicity, we'll allow placement anywhere not in a defense area.
+    const inDefenseArea = defenseAreas.some(area => {
+        return x > area.x - area.width / 2 && x < area.x + area.width / 2 &&
+               y > area.y - area.height / 2 && y < area.y + area.height / 2;
+    });
+    return inDefenseArea;
   }
 
   canvas.addEventListener('click', (event) => {
@@ -268,15 +254,12 @@ onMounted(() => {
         bases.push(new Base(x, y));
         money.value -= cost;
       } else {
-        console.log(`Cannot place base on path!`);
+        console.log(`Cannot place base in defense area!`);
       }
     } else if (selectedUnitType.value === 'wall') {
-      if (isNearPath(x, y)) {
+        // Walls can be placed anywhere for now
         walls.push(new Wall(x, y));
         money.value -= cost;
-      } else {
-        console.log("Can only place walls on the path!");
-      }
     }
   });
 
