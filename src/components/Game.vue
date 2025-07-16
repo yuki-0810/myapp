@@ -40,6 +40,8 @@ const score = ref(0);
 const cannonResearched = ref(false);
 const cannonResearchCost = 500;
 const selectedBase = ref(null); // To track the clicked base for module building
+const countdown = ref(5);
+const gameStarted = ref(false);
 
 const selectUnit = (type) => {
   selectedUnitType.value = type;
@@ -65,7 +67,6 @@ const buildModule = (moduleType) => {
     const moduleClass = modules[moduleType];
     if (!moduleClass) return;
 
-    // Pass a dummy 'null' for the base just to get the cost
     const cost = new moduleClass(null).cost;
     if (money.value >= cost) {
         money.value -= cost;
@@ -85,34 +86,38 @@ onMounted(() => {
     return;
   }
 
-  // Game variables
-  const paths = [
-    [ // Path 1 (Top)
-      { x: 50, y: 0 }, { x: 50, y: 150 }, { x: 200, y: 150 }, { x: 200, y: 300 }, { x: 50, y: 300 }, { x: 50, y: 450 }, { x: 200, y: 450 }, { x: 200, y: 600 }, { x: 50, y: 600 }, { x: 50, y: 800 }
-    ],
-    [ // Path 2 (Middle)
-      { x: 225, y: 0 }, { x: 225, y: 250 }, { x: 350, y: 250 }, { x: 350, y: 500 }, { x: 225, y: 500 }, { x: 225, y: 800 }
-    ],
-    [ // Path 3 (Bottom)
-      { x: 400, y: 0 }, { x: 400, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 400 }, { x: 400, y: 400 }, { x: 400, y: 700 }, { x: 300, y: 700 }, { x: 300, y: 800 }
-    ]
-  ];
-
   const enemies = [];
   const bases = [];
   const projectiles = [];
   const walls = [];
   const defenseAreas = [];
 
-  // Define defense areas for each path
-  const defenseArea1 = new DefenseArea(75, 750, 150, 50);
-  const defenseArea2 = new DefenseArea(225, 750, 150, 50);
-  const defenseArea3 = new DefenseArea(375, 750, 150, 50);
+  // Define defense areas
+  const areaWidth = canvas.width * 0.9;
+  const areaHeight = 50;
+  const centerX = canvas.width / 2;
 
+  const defenseArea1 = new DefenseArea(centerX, canvas.height * 0.2, areaWidth, areaHeight);
+  const defenseArea2 = new DefenseArea(centerX, canvas.height * 0.5, areaWidth, areaHeight);
+  const defenseArea3 = new DefenseArea(centerX, canvas.height * 0.8, areaWidth, areaHeight);
   defenseAreas.push(defenseArea1, defenseArea2, defenseArea3);
+
+  // Define paths for each defense area
+  const paths = [
+    [ // Path 1 (Top)
+      { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 300, y: 100 }, { x: 300, y: defenseArea1.y }
+    ],
+    [ // Path 2 (Middle)
+      { x: 225, y: 0 }, { x: 225, y: 200 }, { x: 100, y: 200 }, { x: 100, y: 350 }, { x: 350, y: 350 }, { x: 350, y: defenseArea2.y }
+    ],
+    [ // Path 3 (Bottom)
+      { x: 400, y: 0 }, { x: 400, y: 150 }, { x: 150, y: 150 }, { x: 150, y: 500 }, { x: 400, y: 500 }, { x: 400, y: defenseArea3.y }
+    ]
+  ];
 
   // Function to spawn enemies
   function spawnEnemy() {
+    if (!gameStarted.value) return;
     const randomPathIndex = Math.floor(Math.random() * paths.length);
     const selectedPath = paths[randomPathIndex];
     const targetDefenseArea = defenseAreas[randomPathIndex];
@@ -126,11 +131,9 @@ onMounted(() => {
 
   // Draw everything
   function draw() {
-    // Clear canvas
     ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw paths
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 20;
     paths.forEach(path => {
@@ -142,127 +145,87 @@ onMounted(() => {
       ctx.stroke();
     });
 
-    // Draw defense areas
     defenseAreas.forEach(area => area.draw(ctx));
-
-    // Draw enemies
     enemies.forEach(enemy => enemy.draw(ctx));
-
-    // Draw bases and their modules
     bases.forEach(base => base.draw(ctx));
-
-    // Draw projectiles
     projectiles.forEach(projectile => projectile.draw(ctx));
-
-    // Draw walls
     walls.forEach(wall => wall.draw(ctx));
+
+    if (!gameStarted.value) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'white';
+      ctx.font = '48px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Game starts in ${countdown.value}`, canvas.width / 2, canvas.height / 2);
+    }
   }
 
   // Game loop
   function gameLoop() {
-    // Update game state
-    enemies.forEach(enemy => enemy.move(walls, defenseAreas));
+    if (gameStarted.value) {
+      enemies.forEach(enemy => enemy.move(walls, defenseAreas));
+      bases.forEach(base => base.update(enemies, projectiles));
 
-    // Update bases and their modules
-    bases.forEach(base => base.update(enemies, projectiles));
-
-    // Update projectiles
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-      const p = projectiles[i];
-      const targetStillExists = enemies.includes(p.target);
-
-      // If target is gone or projectile reaches target, remove projectile
-      if (!targetStillExists || p.move()) {
-        // If target exists and we are at the target, apply damage
-        if (targetStillExists) {
-            p.target.health -= p.damage;
-
-            // Apply splash damage
-            if (p.splashRadius > 0) {
-                enemies.forEach(enemy => {
-                    if (enemy !== p.target) {
-                        const dist = Math.sqrt(Math.pow(enemy.x - p.target.x, 2) + Math.pow(enemy.y - p.target.y, 2));
-                        if (dist <= p.splashRadius) {
-                            enemy.health -= p.damage / 2;
-                        }
-                    }
-                });
-            }
-        }
-        projectiles.splice(i, 1);
-      }
-    }
-
-    // Remove dead enemies
-    for (let i = enemies.length - 1; i >= 0; i--) {
-      if (enemies[i].health <= 0) {
-        money.value += enemies[i].reward;
-        score.value += enemies[i].reward;
-        enemies.splice(i, 1);
-      }
-    }
-
-    // Remove destroyed walls
-    for (let i = walls.length - 1; i >= 0; i--) {
-      if (walls[i].health <= 0) {
-        walls.splice(i, 1);
-      }
-    }
-
-    // Remove destroyed defense areas and their contained units
-    for (let i = defenseAreas.length - 1; i >= 0; i--) {
-      if (defenseAreas[i].health <= 0) {
-        const destroyedArea = defenseAreas[i];
-
-        // Remove bases within the destroyed area
-        for (let j = bases.length - 1; j >= 0; j--) {
-          const base = bases[j];
-          if (base.x > destroyedArea.x - destroyedArea.width / 2 &&
-              base.x < destroyedArea.x + destroyedArea.width / 2 &&
-              base.y > destroyedArea.y - destroyedArea.height / 2 &&
-              base.y < destroyedArea.y + destroyedArea.height / 2) {
-            bases.splice(j, 1);
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        const targetStillExists = enemies.includes(p.target);
+        if (!targetStillExists || p.move()) {
+          if (targetStillExists) {
+              p.target.health -= p.damage;
+              if (p.splashRadius > 0) {
+                  enemies.forEach(enemy => {
+                      if (enemy !== p.target) {
+                          const dist = Math.sqrt(Math.pow(enemy.x - p.target.x, 2) + Math.pow(enemy.y - p.target.y, 2));
+                          if (dist <= p.splashRadius) {
+                              enemy.health -= p.damage / 2;
+                          }
+                      }
+                  });
+              }
           }
+          projectiles.splice(i, 1);
         }
+      }
 
-        // Remove walls within the destroyed area
-        for (let j = walls.length - 1; j >= 0; j--) {
-          const wall = walls[j];
-          if (wall.x > destroyedArea.x - destroyedArea.width / 2 &&
-              wall.x < destroyedArea.x + destroyedArea.width / 2 &&
-              wall.y > destroyedArea.y - destroyedArea.height / 2 &&
-              wall.y < destroyedArea.y + destroyedArea.height / 2) {
-            walls.splice(j, 1);
-          }
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        if (enemies[i].health <= 0) {
+          money.value += enemies[i].reward;
+          score.value += enemies[i].reward;
+          enemies.splice(i, 1);
         }
+      }
 
-        defenseAreas.splice(i, 1);
+      for (let i = walls.length - 1; i >= 0; i--) {
+        if (walls[i].health <= 0) {
+          walls.splice(i, 1);
+        }
+      }
+
+      for (let i = defenseAreas.length - 1; i >= 0; i--) {
+        if (defenseAreas[i].health <= 0) {
+          // For now, just remove the area. In a real game, this might trigger a game over.
+          defenseAreas.splice(i, 1);
+        }
       }
     }
 
-    // Draw the game
     draw();
-
     requestAnimationFrame(gameLoop);
   }
 
-  // Helper function to check if a point is on or near the path
   function isNearPath(x, y, tolerance = 15) {
-    // Check all paths
     for (const path of paths) {
       for (let i = 0; i < path.length - 1; i++) {
         const p1 = path[i];
         const p2 = path[i + 1];
-
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         const lengthSq = dx * dx + dy * dy;
         let t = ((x - p1.x) * dx + (y - p1.y) * dy) / lengthSq;
         t = Math.max(0, Math.min(1, t));
-
         const closestX = p1.x + t * dx;
         const closestY = p1.y + t * dy;
-
         const distSq = Math.pow(x - closestX, 2) + Math.pow(y - closestY, 2);
         if (distSq <= tolerance * tolerance) {
           return true;
@@ -272,45 +235,19 @@ onMounted(() => {
     return false;
   }
 
-  // Event listener for canvas clicks
   canvas.addEventListener('click', (event) => {
+    if (!gameStarted.value) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    // Check if clicking on an existing wall for repair
-    if (selectedUnitType.value === 'repair_wall') {
-        const clickedWall = walls.find(w => 
-            x >= w.x - w.width / 2 && x <= w.x + w.width / 2 &&
-            y >= w.y - w.height / 2 && y <= w.y + w.height / 2
-        );
-        if (clickedWall) {
-            const repairCost = 10; // Cost to repair a wall
-            if (money.value >= repairCost && clickedWall.health < clickedWall.maxHealth) {
-                money.value -= repairCost;
-                clickedWall.health = clickedWall.maxHealth; // Fully repair
-                console.log("Wall repaired!");
-            } else if (money.value < repairCost) {
-                console.log("Not enough money to repair!");
-            } else {
-                console.log("Wall is already at full health!");
-            }
-        }
-        return;
-    }
-
-    // Check if clicking on an existing base for module building
-    const clickedBase = bases.find(b => 
-        x >= b.x - b.width / 2 && x <= b.x + b.width / 2 &&
-        y >= b.y - b.height / 2 && y <= b.y + b.height / 2
-    );
-
+    const clickedBase = bases.find(b => x >= b.x - b.width / 2 && x <= b.x + b.width / 2 && y >= b.y - b.height / 2 && y <= b.y + b.height / 2);
     if (clickedBase) {
         if (!clickedBase.module) {
             selectedBase.value = clickedBase;
-            selectedUnitType.value = null; // Stop placing new units
+            selectedUnitType.value = null;
         }
         return;
     }
@@ -322,12 +259,7 @@ onMounted(() => {
 
     const unitCosts = { base: 50, wall: 20 };
     const cost = unitCosts[selectedUnitType.value];
-
-    if (!cost) return;
-    if (money.value < cost) {
-        console.log("Not enough money!");
-        return;
-    }
+    if (!cost || money.value < cost) return;
 
     if (selectedUnitType.value === 'base') {
       if (!isNearPath(x, y)) {
@@ -346,8 +278,16 @@ onMounted(() => {
     }
   });
 
-  // Start the game
-  setInterval(spawnEnemy, 2000); // Spawn an enemy every 2 seconds
+  // Start countdown
+  const countdownInterval = setInterval(() => {
+    countdown.value--;
+    if (countdown.value <= 0) {
+      clearInterval(countdownInterval);
+      gameStarted.value = true;
+      setInterval(spawnEnemy, 2000); // Start spawning enemies
+    }
+  }, 1000);
+
   gameLoop();
 });
 </script>
