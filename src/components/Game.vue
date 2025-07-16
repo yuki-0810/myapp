@@ -35,7 +35,7 @@ import { Base, MachineGunModule, CannonModule, Wall, Enemy, Tank, DefenseArea, P
 
 const gameCanvas = ref(null);
 const selectedUnitType = ref(null);
-const money = ref(200); // Starting money
+const money = ref(500); // Starting money
 const score = ref(0);
 const cannonResearched = ref(false);
 const cannonResearchCost = 500;
@@ -105,9 +105,9 @@ onMounted(() => {
   const defenseAreas = [];
 
   // Define defense areas for each path
-  const defenseArea1 = new DefenseArea(225, 700, 450, 50); // End of Path 1
-  const defenseArea2 = new DefenseArea(225, 750, 450, 50); // End of Path 2
-  const defenseArea3 = new DefenseArea(225, 800, 450, 50); // End of Path 3
+  const defenseArea1 = new DefenseArea(75, 750, 150, 50);
+  const defenseArea2 = new DefenseArea(225, 750, 150, 50);
+  const defenseArea3 = new DefenseArea(375, 750, 150, 50);
 
   defenseAreas.push(defenseArea1, defenseArea2, defenseArea3);
 
