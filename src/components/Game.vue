@@ -29,6 +29,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { Base, MachineGunModule, CannonModule, Wall, Enemy, Tank, DefenseArea, Projectile } from '../game/entities.js';
+
+// --- Vue Component Script ---
 
 const gameCanvas = ref(null);
 const selectedUnitType = ref(null);
@@ -52,6 +55,27 @@ const researchCannon = () => {
   }
 };
 
+const buildModule = (moduleType) => {
+    if (!selectedBase.value || selectedBase.value.module) return;
+
+    const modules = {
+        machine_gun: MachineGunModule,
+        cannon: CannonModule
+    };
+    const moduleClass = modules[moduleType];
+    if (!moduleClass) return;
+
+    // Pass a dummy 'null' for the base just to get the cost
+    const cost = new moduleClass(null).cost;
+    if (money.value >= cost) {
+        money.value -= cost;
+        selectedBase.value.module = new moduleClass(selectedBase.value);
+        selectedBase.value = null; // Hide panel
+    } else {
+        console.log("Not enough money for this module!");
+    }
+};
+
 onMounted(() => {
   const canvas = gameCanvas.value;
   const ctx = canvas.getContext('2d');
@@ -71,304 +95,10 @@ onMounted(() => {
   ];
 
   const enemies = [];
-  const bases = []; // Replaces towers array
+  const bases = [];
   const projectiles = [];
   const walls = [];
   const defenseAreas = [];
-
-  // Game Classes
-  class Projectile {
-    constructor(x, y, target, damage, speed = 5, splashRadius = 0) {
-      this.x = x;
-      this.y = y;
-      this.target = target;
-      this.damage = damage;
-      this.speed = speed;
-      this.radius = 3;
-      this.splashRadius = splashRadius;
-    }
-
-    move() {
-      const dx = this.target.x - this.x;
-      const dy = this.target.y - this.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < this.speed) {
-        this.x = this.target.x;
-        this.y = this.target.y;
-        return true; // Reached target
-      } else {
-        this.x += (dx / distance) * this.speed;
-        this.y += (dy / distance) * this.speed;
-        return false;
-      }
-    }
-
-    draw() {
-      ctx.fillStyle = 'gold';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  class Base {
-      constructor(x, y) {
-          this.x = x;
-          this.y = y;
-          this.width = 40;
-          this.height = 40;
-          this.cost = 50;
-          this.module = null; // To hold the weapon module
-      }
-
-      draw() {
-          ctx.fillStyle = '#aaa';
-          ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-          if (this.module) {
-              this.module.draw();
-          }
-      }
-
-      update() {
-          if (this.module) {
-              this.module.update();
-          }
-      }
-  }
-
-  class MachineGunModule {
-      constructor(base) {
-          this.base = base;
-          this.range = 150;
-          this.damage = 20;
-          this.attackSpeed = 60; // in frames
-          this.attackCooldown = 0;
-          this.cost = 100;
-      }
-
-      draw() {
-          ctx.fillStyle = 'blue';
-          ctx.fillRect(this.base.x - 15, this.base.y - 15, 30, 30);
-          // Draw range circle
-          ctx.strokeStyle = 'rgba(0, 0, 255, 0.3)';
-          ctx.beginPath();
-          ctx.arc(this.base.x, this.base.y, this.range, 0, Math.PI * 2);
-          ctx.stroke();
-      }
-
-      update() {
-          if (this.attackCooldown > 0) {
-              this.attackCooldown--;
-              return;
-          }
-          const target = enemies.find(enemy => {
-              const dist = Math.sqrt(Math.pow(enemy.x - this.base.x, 2) + Math.pow(enemy.y - this.base.y, 2));
-              return dist <= this.range;
-          });
-          if (target) {
-              projectiles.push(new Projectile(this.base.x, this.base.y, target, this.damage));
-              this.attackCooldown = this.attackSpeed;
-          }
-      }
-  }
-
-  class CannonModule {
-      constructor(base) {
-          this.base = base;
-          this.range = 120;
-          this.damage = 40;
-          this.attackSpeed = 180; // in frames
-          this.cost = 250;
-      }
-
-      draw() {
-          ctx.fillStyle = 'darkgreen';
-          ctx.fillRect(this.base.x - 20, this.base.y - 20, 40, 40);
-          // Draw range circle
-          ctx.strokeStyle = 'rgba(0, 100, 0, 0.3)';
-          ctx.beginPath();
-          ctx.arc(this.base.x, this.base.y, this.range, 0, Math.PI * 2);
-          ctx.stroke();
-      }
-
-      update() {
-          if (this.attackCooldown > 0) {
-              this.attackCooldown--;
-              return;
-          }
-          const target = enemies.find(enemy => {
-              const dist = Math.sqrt(Math.pow(enemy.x - this.base.x, 2) + Math.pow(enemy.y - this.base.y, 2));
-              return dist <= this.range;
-          });
-          if (target) {
-              projectiles.push(new Projectile(this.base.x, this.base.y, target, this.damage, 4, 50)); // speed=4, splashRadius=50
-              this.attackCooldown = this.attackSpeed;
-          }
-      }
-  }
-
-  class Wall {
-    constructor(x, y, health = 200) {
-      this.x = x;
-      this.y = y;
-      this.width = 40;
-      this.height = 40;
-      this.health = health;
-      this.maxHealth = health;
-      this.cost = 20;
-    }
-
-    draw() {
-      ctx.fillStyle = 'brown';
-      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-
-      // Draw health bar
-      const healthBarWidth = this.width;
-      const healthBarHeight = 5;
-      const healthBarX = this.x - this.width / 2;
-      const healthBarY = this.y - this.height / 2 - 10;
-
-      ctx.fillStyle = 'gray';
-      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-
-      ctx.fillStyle = 'lime';
-      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
-      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
-    }
-  }
-
-  class DefenseArea {
-    constructor(x, y, width, height, health = 1000) {
-      this.x = x;
-      this.y = y;
-      this.width = width;
-      this.height = height;
-      this.health = health;
-      this.maxHealth = health;
-      this.containedUnits = []; // Towers and walls within this area
-    }
-
-    draw() {
-      ctx.strokeStyle = 'purple';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-
-      // Draw health bar
-      const healthBarWidth = this.width;
-      const healthBarHeight = 8;
-      const healthBarX = this.x - this.width / 2;
-      const healthBarY = this.y - this.height / 2 - 15;
-
-      ctx.fillStyle = 'darkgray';
-      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-
-      ctx.fillStyle = 'green';
-      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
-      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
-    }
-  }
-
-  class Enemy {
-    constructor(x, y, speed = 1, health = 100) {
-      this.x = x;
-      this.y = y;
-      this.width = 20;
-      this.height = 20;
-      this.speed = speed;
-      this.health = health;
-      this.maxHealth = health;
-      this.pathIndex = 0;
-      this.isAttackingWall = false;
-      this.reward = 10;
-    }
-
-    move() {
-      // Check for collision with walls
-      const collidedWall = walls.find(wall => {
-        return this.x < wall.x + wall.width / 2 &&
-               this.x + this.width / 2 > wall.x - wall.width / 2 &&
-               this.y < wall.y + wall.height / 2 &&
-               this.y + this.height / 2 > wall.y - wall.height / 2;
-      });
-
-      // Check for collision with defense areas
-      const collidedDefenseArea = defenseAreas.find(area => {
-        return this.x < area.x + area.width / 2 &&
-               this.x + this.width / 2 > area.x - area.width / 2 &&
-               this.y < area.y + area.height / 2 &&
-               this.y + this.height / 2 > area.y - area.height / 2;
-      });
-
-      if (collidedWall) {
-        this.isAttackingWall = true;
-        collidedWall.health -= 1; // Reduce wall health over time
-      } else if (collidedDefenseArea) {
-        this.isAttackingWall = true; // Treat as attacking a wall for now, can be refined later
-        collidedDefenseArea.health -= 1; // Reduce defense area health over time
-      } else {
-        this.isAttackingWall = false;
-        if (this.pathIndex < path.length - 1) {
-          const target = path[this.pathIndex + 1];
-          const dx = target.x - this.x;
-          const dy = target.y - this.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance < this.speed) {
-            this.pathIndex++;
-          } else {
-            this.x += (dx / distance) * this.speed;
-            this.y += (dy / distance) * this.speed;
-          }
-        }
-      }
-    }
-
-    draw() {
-      ctx.fillStyle = 'red';
-      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-      
-      // Draw health bar
-      const healthBarWidth = this.width;
-      const healthBarHeight = 5;
-      const healthBarX = this.x - this.width / 2;
-      const healthBarY = this.y - this.height / 2 - 7;
-
-      ctx.fillStyle = 'gray';
-      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-
-      ctx.fillStyle = 'lime';
-      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
-      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
-    }
-  }
-
-  class Tank extends Enemy {
-    constructor(x, y) {
-      super(x, y, 0.5, 400); // speed, health
-      this.width = 30;
-      this.height = 30;
-      this.reward = 50;
-    }
-
-    draw() {
-      ctx.fillStyle = 'purple';
-      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-
-      // Draw health bar
-      const healthBarWidth = this.width;
-      const healthBarHeight = 5;
-      const healthBarX = this.x - this.width / 2;
-      const healthBarY = this.y - this.height / 2 - 7;
-
-      ctx.fillStyle = 'gray';
-      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-
-      ctx.fillStyle = 'lime';
-      const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
-      ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
-    }
-  }
 
   // Function to spawn enemies
   function spawnEnemy() {
@@ -401,28 +131,28 @@ onMounted(() => {
     ctx.stroke();
 
     // Draw defense areas
-    defenseAreas.forEach(area => area.draw());
+    defenseAreas.forEach(area => area.draw(ctx));
 
     // Draw enemies
-    enemies.forEach(enemy => enemy.draw());
+    enemies.forEach(enemy => enemy.draw(ctx));
 
     // Draw bases and their modules
-    bases.forEach(base => base.draw());
+    bases.forEach(base => base.draw(ctx));
 
     // Draw projectiles
-    projectiles.forEach(projectile => projectile.draw());
+    projectiles.forEach(projectile => projectile.draw(ctx));
 
     // Draw walls
-    walls.forEach(wall => wall.draw());
+    walls.forEach(wall => wall.draw(ctx));
   }
 
   // Game loop
   function gameLoop() {
     // Update game state
-    enemies.forEach(enemy => enemy.move());
+    enemies.forEach(enemy => enemy.move(path, walls, defenseAreas));
 
     // Update bases and their modules
-    bases.forEach(base => base.update());
+    bases.forEach(base => base.update(enemies, projectiles));
 
     // Update projectiles
     for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -521,26 +251,6 @@ onMounted(() => {
     }
     return false;
   }
-
-  window.buildModule = (moduleType) => {
-      if (!selectedBase.value || selectedBase.value.module) return;
-
-      const modules = {
-          machine_gun: MachineGunModule,
-          cannon: CannonModule
-      };
-      const moduleClass = modules[moduleType];
-      if (!moduleClass) return;
-
-      const cost = new moduleClass(null).cost;
-      if (money.value >= cost) {
-          money.value -= cost;
-          selectedBase.value.module = new moduleClass(selectedBase.value);
-          selectedBase.value = null; // Hide panel
-      } else {
-          console.log("Not enough money for this module!");
-      }
-  };
 
   // Event listener for canvas clicks
   canvas.addEventListener('click', (event) => {
